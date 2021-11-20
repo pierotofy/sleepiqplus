@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from homeassistant.util import Throttle
 from requests.exceptions import HTTPError
-
+from homeassistant.components.number import NumberEntity, PLATFORM_SCHEMA
 DOMAIN = 'sleepiqplus'
 
 REQUIREMENTS = ['sleepyq==0.8.1']
@@ -23,24 +23,21 @@ SIDES = [LEFT, RIGHT]
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-    }),
-}, extra=vol.ALLOW_EXTRA)
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_USERNAME): cv.string,
+    vol.Required(CONF_PASSWORD): cv.string,
+})
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    global client
     from sleepyq import Sleepyq
-    username = config[DOMAIN][CONF_USERNAME]
-    password = config[DOMAIN][CONF_PASSWORD]
+    username = config[CONF_USERNAME]
+    password = config[CONF_PASSWORD]
     client = Sleepyq(username, password)
     
     try:
         client.login()
-        beds = client.beds()
+        beds = client.beds_with_sleeper_status()
         add_entities(BedNumber(client, bed, LEFT) for bed in beds)
         add_entities(BedNumber(client, bed, RIGHT) for bed in beds)
     except Exception as e:
@@ -81,14 +78,14 @@ class BedNumber(NumberEntity):
         self.client = client
         self.bed = bed
         self.side = side
-
-        self._name = bed.data.get('name') + side[0] + side[1:].lower()
-
-        fav_data = self.client.get_favsleepnumber(bed.data.get('bedId')).data
+        self._name = "SleepNumber " + bed.name + " "
+        
         if side == LEFT:
-            self._value = fav_data.get('sleepNumberFavoriteLeft')
+            self._name += bed.left.sleeper.first_name
+            self._value = bed.left.sleep_number
         else:
-            self._value = fav_data.get('sleepNumberFavoriteRight')
+            self._name += bed.right.sleeper.first_name
+            self._value = bed.right.sleep_number
 
     @property
     def name(self):
@@ -98,12 +95,17 @@ class BedNumber(NumberEntity):
         """Update the current value."""
         try:
             self.client.login()
-            self.client.set_sleepnumber(self.side, value, bedId=self.bed.data.get('bedId'))
+            self.client.set_sleepnumber(self.side, value, bedId=self.bed.bed_id)
             self._value = value
         except Exception as e:
             _LOGGER.error("Cannot set bed number: %s" % str(e))
 
-    @property value(self):
+    @property
+    def mode(self):
+        return "slider"
+        
+    @property
+    def value(self):
         return self._value
 
     @property
