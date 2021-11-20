@@ -1,0 +1,9 @@
+{
+  "domain": "sleepiqplus",
+  "name": "SleepIQ Plus",
+  "documentation": "https://github.com/pierotofy/spqplus",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@pierotofy"],
+  "version": "1.0.0"
+}
